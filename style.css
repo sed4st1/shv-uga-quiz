@@ -311,18 +311,97 @@ button, a {
 }
 .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
-/* ---------- Desktop / широкий экран ---------- */
+/* ---------- Desktop / широкий экран ----------
+   Настоящий фрейм VK Mini App на десктопе — фиксированные ~1000px
+   (см. документацию VK), поэтому здесь используем полноценную
+   двухколоночную вёрстку вместо растянутой телефонной карточки.
+   Оборачивающие узлы (.hero-mid, .result-top) переводятся в
+   display:contents — их дети становятся самостоятельными grid-item
+   и расставляются по колонкам без изменений в разметке JS. */
 
-@media (min-width: 720px) {
-  .screen-hero, .screen-question, .screen-result {
-    max-width: 480px;
+@media (min-width: 760px) {
+  body { background: #EDE3DF; }
+
+  .screen-question {
+    max-width: 1000px;
+    margin: 0 auto;
+    min-height: 100vh;
+    padding: 64px 72px;
+    box-shadow: 0 0 60px rgba(90,40,35,.12);
+  }
+  /* align-items остаётся stretch (по умолчанию) — иначе q-head перестаёт
+     растягиваться на всю ширину и justify-content:space-between внутри
+     него схлопывается. Центрируем каждый блок отдельно через margin:auto. */
+  .q-head, .q-dots, .q-title, .q-options { margin-left: auto; margin-right: auto; width: 100%; }
+  .q-head, .q-dots { max-width: 720px; }
+  .q-title { max-width: 680px; font-size: clamp(28px, 3.4vw, 40px); padding-bottom: 28px; }
+  .q-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px 16px;
+    max-width: 760px;
+  }
+  .q-options .q-option:last-child:nth-child(odd) { grid-column: 1 / -1; }
+
+  /* ---- Старт ----
+     Заголовок и декоративные кольца сознательно разведены по разным
+     ячейкам грида (title — строки 2-3, deco — отдельная строка 4),
+     чтобы кольца никогда не наезжали на текст, независимо от того,
+     сколько строк займёт заголовок. */
+  .screen-hero {
+    max-width: 1000px;
     margin: 0 auto;
     min-height: 100vh;
     box-shadow: 0 0 60px rgba(90,40,35,.12);
+    display: grid;
+    grid-template-columns: 1.1fr 1fr;
+    grid-template-areas:
+      "top   top"
+      "title text"
+      "title cta"
+      "deco  .";
+    align-content: center;
+    column-gap: 64px;
+    row-gap: 20px;
+    padding: 72px;
   }
-  body { background: #EDE3DF; }
-}
+  .screen-hero > .hero-top { grid-area: top; }
+  .hero-mid { display: contents; }
+  .screen-hero .hero-title {
+    grid-area: title;
+    font-size: clamp(48px, 5.4vw, 80px);
+    align-self: start;
+    padding-top: 12px;
+  }
+  .screen-hero .hero-text { grid-area: text; align-self: end; max-width: 380px; font-size: 17px; }
+  .screen-hero .hero-decor { grid-area: deco; top: 0; right: -30px; width: 220px; height: 220px; }
+  .hero-bottom { grid-area: cta; max-width: 340px; }
 
-@media (min-height: 760px) {
-  .hero-mid { padding: 40px 0; }
+  /* ---- Результат ----
+     Тот же приём: имя архетипа (1-2 строки) — строки 1-2, кольца — в
+     отдельной ячейке ниже, чтобы не пересекаться с текстом любой длины. */
+  .screen-result {
+    max-width: 1000px;
+    margin: 0 auto;
+    min-height: 100vh;
+    box-shadow: 0 0 60px rgba(90,40,35,.12);
+    display: grid;
+    grid-template-columns: 1fr 1.05fr;
+    grid-template-areas:
+      "name    eyebrow"
+      "name    desc"
+      "deco    note"
+      "deco    bottom";
+    align-content: center;
+    column-gap: 64px;
+    row-gap: 18px;
+    padding: 72px;
+  }
+  .result-top { display: contents; }
+  .result-eyebrow { grid-area: eyebrow; }
+  .screen-result .result-name { grid-area: name; align-self: start; font-size: clamp(56px, 7vw, 100px); padding-top: 30px; }
+  .result-desc { grid-area: desc; max-width: 420px; font-size: 17px; }
+  .result-note { grid-area: note; max-width: 420px; }
+  .result-bottom { grid-area: bottom; max-width: 380px; }
+  .result-decor { grid-area: deco; top: 0; right: -50px; }
 }
