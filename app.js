@@ -222,39 +222,20 @@
   function drawResultCanvas() {
     var a = ARCHETYPES[state.resultKey];
     var canvas = document.getElementById('result-canvas');
-    var size = 1080;
-    canvas.width = size;
-    canvas.height = size;
+    // Не квадрат: нижняя часть специально ниже, чтобы декоративным кольцам
+    // всегда хватало места под текстом тега/описания, независимо от их длины
+    // (у "Мастер игры" тег длинный и раньше упирался в кольцо).
+    var w = 1080, h = 1350;
+    canvas.width = w;
+    canvas.height = h;
     var ctx = canvas.getContext('2d');
 
     // фон — градиент архетипа
-    var grad = ctx.createLinearGradient(0, 0, size, size);
+    var grad = ctx.createLinearGradient(0, 0, w, h);
     grad.addColorStop(0, a.color1);
     grad.addColorStop(1, a.color2);
     ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, size, size);
-
-    // декоративные кольца
-    ctx.save();
-    ctx.globalAlpha = 0.9;
-    ctx.strokeStyle = a.deco;
-    ctx.fillStyle = a.deco;
-
-    ctx.lineWidth = 16;
-    ctx.beginPath();
-    ctx.arc(size - 230, 330, 210, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.globalAlpha = 0.45;
-    ctx.beginPath();
-    ctx.arc(size - 230, 330, 110, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.globalAlpha = 0.9;
-    ctx.beginPath();
-    ctx.arc(size - 720, 460, 90, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
+    ctx.fillRect(0, 0, w, h);
 
     // бренд-плашка
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
@@ -289,21 +270,46 @@
     // описание
     ctx.font = '500 34px Onest, sans-serif';
     ctx.fillStyle = '#FFFFFF';
-    var lines = wrapText(ctx, a.desc, size - 130);
+    var lines = wrapText(ctx, a.desc, w - 130);
     var lineY = 560;
     lines.forEach(function (line) {
       ctx.fillText(line, 64, lineY);
       lineY += 46;
     });
 
+    // декоративные кольца — специально ниже текста тега/описания и выше
+    // подписи-приглашения, чтобы никогда не наезжать на текст ни при каком
+    // архетипе (самый длинный тег/описание уже учтены отступами выше)
+    var decorY = Math.max(lineY + 130, 880);
+    ctx.save();
+    ctx.globalAlpha = 0.9;
+    ctx.strokeStyle = a.deco;
+    ctx.fillStyle = a.deco;
+
+    ctx.lineWidth = 14;
+    ctx.beginPath();
+    ctx.arc(w - 280, decorY, 150, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.globalAlpha = 0.45;
+    ctx.beginPath();
+    ctx.arc(w - 280, decorY, 82, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.globalAlpha = 0.9;
+    ctx.beginPath();
+    ctx.arc(240, decorY + 60, 70, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+
     // подпись-приглашение
     ctx.font = '700 40px Oswald, sans-serif';
     ctx.fillStyle = '#FFFFFF';
-    ctx.fillText('ПРИСОЕДИНЯЙСЯ К НАМ', 64, size - 140);
+    ctx.fillText('ПРИСОЕДИНЯЙСЯ К НАМ', 64, h - 140);
 
     ctx.font = '500 30px Onest, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fillText(COMMUNITY_URL.replace('https://', ''), 64, size - 90);
+    ctx.fillText(COMMUNITY_URL.replace('https://', ''), 64, h - 90);
 
     return canvas;
   }
