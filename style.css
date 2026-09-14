@@ -47,6 +47,33 @@ button, a {
   cursor: pointer;
 }
 
+/* ---------- Общие декоративные элементы (хэштеги + пульс колец) ---------- */
+
+.brand-hashtags {
+  position: absolute;
+  inset: -10px;
+  opacity: .13;
+  color: #fff;
+  font-family: var(--font-body);
+  font-weight: 700;
+  font-size: 18px;
+  line-height: 1.85;
+  letter-spacing: .02em;
+  word-spacing: 6px;
+  overflow: hidden;
+  pointer-events: none;
+  user-select: none;
+}
+
+@keyframes pulseRing {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.04); }
+}
+.hero-decor, .result-decor { animation: pulseRing 6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .hero-decor, .result-decor { animation: none; }
+}
+
 /* ---------- Hero screens (старт / финал) ---------- */
 
 .screen-hero {

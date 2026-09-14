@@ -46,9 +46,18 @@
     return node;
   }
 
+  // Фоновая текстура из полупрозрачных хэштегов — фирменный приём бренда,
+  // используется на обоих полноцветных экранах (старт и результат).
+  var HASHTAG_LINE = new Array(40).fill('#ВожатыеЮга').join(' ');
+  function hashtagBackdrop() {
+    return el('div', { class: 'brand-hashtags', text: HASHTAG_LINE, 'aria-hidden': 'true' });
+  }
+
   // ---------- Экран старта ----------
   function renderStart() {
     var screen = el('div', { class: 'screen-hero' });
+
+    var hashtags = hashtagBackdrop();
 
     var decor = el('div', { class: 'hero-decor' }, [
       el('span', { class: 'ring1' }), el('span', { class: 'ring2' }),
@@ -58,7 +67,7 @@
 
     var top = el('div', { class: 'hero-top' }, [
       el('div', { class: 'hero-badge', text: 'ШВ' }),
-      el('div', { class: 'hero-brand', text: 'Школа вожатых РОПО Юга' })
+      el('div', { class: 'hero-brand', text: 'Школа вожатых Юга ЮФУ' })
     ]);
 
     var mid = el('div', { class: 'hero-mid' }, [
@@ -72,6 +81,7 @@
       el('div', { class: 'hero-fine', text: '7 вопросов · 2 минуты' })
     ]);
 
+    screen.appendChild(hashtags);
     screen.appendChild(decor);
     screen.appendChild(top);
     screen.appendChild(mid);
@@ -158,6 +168,8 @@
     screen.style.setProperty('--r-deco', a.deco);
     screen.style.background = 'linear-gradient(150deg,' + a.color1 + ',' + a.color2 + ')';
 
+    var hashtags = hashtagBackdrop();
+
     var decor = el('div', { class: 'result-decor' }, [
       el('span', { class: 'r1' }), el('span', { class: 'r2' }), el('span', { class: 'r3' })
     ]);
@@ -182,6 +194,7 @@
 
     var bottom = el('div', { class: 'result-bottom' }, [communityLink, shareBtn, restartBtn]);
 
+    screen.appendChild(hashtags);
     screen.appendChild(decor);
     screen.appendChild(top);
     screen.appendChild(bottom);
@@ -247,7 +260,7 @@
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.font = '600 26px Oswald, sans-serif';
     ctx.textBaseline = 'alphabetic';
-    ctx.fillText('ШКОЛА ВОЖАТЫХ РОПО ЮГА', 64, 92);
+    ctx.fillText('ШКОЛА ВОЖАТЫХ ЮГА ЮФУ', 64, 92);
 
     ctx.fillStyle = 'rgba(255,255,255,0.85)';
     ctx.font = '600 28px Oswald, sans-serif';
@@ -320,7 +333,7 @@
 
   function shareText(a) {
     return 'Мой тип вожатого — ' + a.name + '. Пройди квиз и узнай свой — а потом' +
-      ' вступай в Школу вожатых РОПО Юга: там как раз таких ищут. ' + COMMUNITY_URL;
+      ' вступай в Школу вожатых Юга ЮФУ: там как раз таких ищут. ' + COMMUNITY_URL;
   }
 
   // Небольшой ненавязчивый тост для редких запасных сценариев шеринга
