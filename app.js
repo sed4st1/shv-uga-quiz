@@ -301,146 +301,13 @@
     return screen;
   }
 
-  // ---------- Генерация картинки-результата на canvas ----------
-  function wrapText(ctx, text, maxWidth) {
-    var words = text.split(' ');
-    var lines = [];
-    var current = '';
-    words.forEach(function (word) {
-      var test = current ? current + ' ' + word : word;
-      if (ctx.measureText(test).width > maxWidth && current) {
-        lines.push(current);
-        current = word;
-      } else {
-        current = test;
-      }
-    });
-    if (current) lines.push(current);
-    return lines;
-  }
-
-  function drawResultCanvas() {
-    var a = ARCHETYPES[state.resultKey];
-    var canvas = document.getElementById('result-canvas');
-    // Не квадрат: нижняя часть специально ниже, чтобы декоративным кольцам
-    // всегда хватало места под текстом тега/описания, независимо от их длины
-    // (у "Мастер игры" тег длинный и раньше упирался в кольцо).
-    var w = 1080, h = 1350;
-    canvas.width = w;
-    canvas.height = h;
-    var ctx = canvas.getContext('2d');
-
-    // фон — градиент архетипа
-    var grad = ctx.createLinearGradient(0, 0, w, h);
-    grad.addColorStop(0, a.color1);
-    grad.addColorStop(1, a.color2);
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
-
-    // бренд-плашка
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.font = '600 26px Oswald, sans-serif';
-    ctx.textBaseline = 'alphabetic';
-    ctx.fillText('ШКОЛА ВОЖАТЫХ ЮГА ЮФУ', 64, 92);
-
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.font = '600 28px Oswald, sans-serif';
-    ctx.fillText('ТВОЙ ТИП ВОЖАТОГО', 64, 200);
-
-    // имя архетипа
-    ctx.fillStyle = '#FFFFFF';
-    ctx.font = '700 116px Oswald, sans-serif';
-    var nameUpper = a.name.toUpperCase();
-    ctx.fillText(nameUpper, 60, 340);
-
-    // тег
-    var tagPaddingX = 24;
-    var tagY = 400;
-    ctx.font = '600 28px Oswald, sans-serif';
-    var tagWidth = ctx.measureText(a.tag.toUpperCase()).width + tagPaddingX * 2;
-    ctx.strokeStyle = 'rgba(255,255,255,0.6)';
-    ctx.lineWidth = 3;
-    ctx.fillStyle = 'rgba(255,255,255,0.16)';
-    roundRect(ctx, 60, tagY, tagWidth, 60, 30);
-    ctx.fill();
-    ctx.stroke();
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillText(a.tag.toUpperCase(), 60 + tagPaddingX, tagY + 40);
-
-    // описание
-    ctx.font = '500 34px Onest, sans-serif';
-    ctx.fillStyle = '#FFFFFF';
-    var lines = wrapText(ctx, a.desc, w - 130);
-    var lineY = 560;
-    lines.forEach(function (line) {
-      ctx.fillText(line, 64, lineY);
-      lineY += 46;
-    });
-
-    // декоративные кольца — специально ниже текста тега/описания и выше
-    // подписи-приглашения, чтобы никогда не наезжать на текст ни при каком
-    // архетипе (самый длинный тег/описание уже учтены отступами выше)
-    var decorY = Math.max(lineY + 130, 880);
-    ctx.save();
-    ctx.globalAlpha = 0.9;
-    ctx.strokeStyle = a.deco;
-    ctx.fillStyle = a.deco;
-
-    ctx.lineWidth = 14;
-    ctx.beginPath();
-    ctx.arc(w - 280, decorY, 150, 0, Math.PI * 2);
-    ctx.stroke();
-
-    ctx.globalAlpha = 0.45;
-    ctx.beginPath();
-    ctx.arc(w - 280, decorY, 82, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.globalAlpha = 0.9;
-    ctx.beginPath();
-    ctx.arc(240, decorY + 60, 70, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
-
-    // подпись-приглашение
-    ctx.font = '700 40px Oswald, sans-serif';
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillText('ПРИСОЕДИНЯЙСЯ К НАМ', 64, h - 140);
-
-    ctx.font = '500 30px Onest, sans-serif';
-    ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.fillText(COMMUNITY_URL.replace('https://', ''), 64, h - 90);
-
-    return canvas;
-  }
-
-  function roundRect(ctx, x, y, w, h, r) {
-    ctx.beginPath();
-    ctx.moveTo(x + r, y);
-    ctx.arcTo(x + w, y, x + w, y + h, r);
-    ctx.arcTo(x + w, y + h, x, y + h, r);
-    ctx.arcTo(x, y + h, x, y, r);
-    ctx.arcTo(x, y, x + w, y, r);
-    ctx.closePath();
-  }
-
-  function canvasToBlob(canvas) {
-    return new Promise(function (resolve) {
-      canvas.toBlob(function (blob) { resolve(blob); }, 'image/png', 0.95);
-    });
-  }
-
-  function fontsReady() {
-    if (document.fonts && document.fonts.ready) {
-      return document.fonts.ready.catch(function () {});
-    }
-    return Promise.resolve();
-  }
-
-  function shareText(a) {
-    return 'Мой тип вожатого — ' + a.name + '. Пройди квиз и узнай свой — а потом' +
-      ' вступай в Школу вожатых Юга ЮФУ: там как раз таких ищут. ' + COMMUNITY_URL;
-  }
+  // ---------- Шеринг результата ----------
+  // Готовые картинки под каждый архетип (5 штук) лежат в share/img/ и
+  // отдаются через собственную статическую страницу share/<key>.html —
+  // там прописаны og:image/og:title, чтобы VK и другие клиенты сами
+  // подтягивали красивую карточку по ссылке. Бэкенд и canvas не нужны.
+  function archetypeShareUrl(key) { return SITE_URL + 'share/' + key + '.html'; }
+  function archetypeImageUrl(key) { return SITE_URL + 'share/img/' + key + '.jpg'; }
 
   // Небольшой ненавязчивый тост для редких запасных сценариев шеринга
   function toast(message) {
@@ -453,50 +320,38 @@
     }, 3200);
   }
 
-  // Запасной сценарий для сред без Web Share (в основном — десктопные браузеры):
-  // показываем саму картинку и текст прямо в приложении, а не молча открываем
-  // голый PNG в новой вкладке — так понятно, что делать дальше.
-  function showShareFallback(text, blob) {
+  // Запасной сценарий для сред без VK Bridge и без Web Share (в основном —
+  // десктопные браузеры вне VK): показываем готовую картинку архетипа и
+  // ссылку прямо в приложении, чтобы можно было скопировать и отправить вручную.
+  function showShareFallback(key) {
     var existing = document.querySelector('.share-fallback-overlay');
     if (existing) existing.remove();
 
-    var imgUrl = blob ? URL.createObjectURL(blob) : null;
+    var a = ARCHETYPES[key];
+    var url = archetypeShareUrl(key);
 
-    function close() {
-      overlay.remove();
-      if (imgUrl) URL.revokeObjectURL(imgUrl);
-    }
+    function close() { overlay.remove(); }
 
-    function downloadImage() {
-      if (!blob) return;
-      var a = document.createElement('a');
-      a.href = imgUrl;
-      a.download = 'kakoi-ty-vozhatyi.png';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    }
-
-    function copyText() {
+    function copyLink() {
       if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(function () {
-          toast('Текст скопирован — вставь его в сообщении ВКонтакте');
+        navigator.clipboard.writeText(url).then(function () {
+          toast('Ссылка скопирована — вставь её в сообщении ВКонтакте');
         }).catch(function () {
-          toast('Не получилось скопировать — выдели текст вручную');
+          toast('Не получилось скопировать — выдели ссылку вручную');
         });
       } else {
-        toast('Не получилось скопировать — выдели текст вручную');
+        toast('Не получилось скопировать — выдели ссылку вручную');
       }
     }
 
     var card = el('div', { class: 'share-fallback-card' }, [
       el('button', { class: 'sf-x', 'aria-label': 'Закрыть', text: '✕', onclick: close }),
       el('div', { class: 'sf-title', text: 'Отправь другу вручную' }),
-      el('div', { class: 'sf-hint', text: 'Автоматически поделиться на этом устройстве нельзя — скачай картинку и скопируй текст, дальше просто вставь их в сообщение или пост ВКонтакте.' }),
-      imgUrl ? el('img', { class: 'sf-img', src: imgUrl, alt: 'Результат квиза' }) : null,
-      el('div', { class: 'sf-text', text: text }),
-      el('button', { class: 'sf-btn-primary', text: 'Скачать картинку', onclick: downloadImage }),
-      el('button', { class: 'sf-btn-secondary', text: 'Скопировать текст', onclick: copyText }),
+      el('div', { class: 'sf-hint', text: 'Автоматически поделиться на этом устройстве нельзя — скопируй ссылку, дальше просто вставь её в сообщение или пост ВКонтакте.' }),
+      el('img', { class: 'sf-img', src: archetypeImageUrl(key), alt: a.name }),
+      el('div', { class: 'sf-text', text: url }),
+      el('button', { class: 'sf-btn-primary', text: 'Скопировать ссылку', onclick: copyLink }),
+      el('a', { class: 'sf-btn-secondary', text: 'Открыть картинку', href: archetypeImageUrl(key), target: '_blank', rel: 'noopener' }),
       el('button', { class: 'sf-close', text: 'Закрыть', onclick: close })
     ]);
 
@@ -509,39 +364,30 @@
   }
 
   function onShareClick() {
-    var a = ARCHETYPES[state.resultKey];
-    var text = shareText(a);
+    var key = state.resultKey;
+    var a = ARCHETYPES[key];
+    var url = archetypeShareUrl(key);
+    var title = 'Я — ' + a.name + '! А ты кто?';
+    var text = a.desc + ' Пройди квиз и узнай свой тип вожатого.';
 
-    fontsReady().then(function () {
-      var canvas = drawResultCanvas();
-      return canvasToBlob(canvas);
-    }).then(function (blob) {
-      var file = blob ? new File([blob], 'kakoi-ty-vozhatyi.png', { type: 'image/png' }) : null;
+    // 1) Внутри VK — нативное окно «Поделиться» с этой ссылкой. VK сам
+    // подтянет og:image/og:title со страницы и покажет готовую карточку.
+    if (vkReady && window.vkBridge && typeof vkBridge.send === 'function') {
+      withTimeout(vkBridge.send('VKWebAppShare', { link: url }), 4000)
+        .catch(function () { showShareFallback(key); });
+      return;
+    }
 
-      // 1) Полноценный шеринг картинки + текста (лучший случай на мобильных браузерах)
-      if (file && navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
-        navigator.share({ files: [file], title: 'Какой ты вожатый?', text: text })
-          .catch(function () { /* пользователь отменил шеринг */ });
-        return;
-      }
+    // 2) Обычный браузерный Web Share — делимся ссылкой и текстом
+    if (navigator.share) {
+      navigator.share({ title: title, text: text, url: url })
+        .catch(function () { /* пользователь отменил шеринг */ });
+      return;
+    }
 
-      // 2) Веб Шеринг без файлов — просто текст со ссылкой на группу
-      if (navigator.share) {
-        navigator.share({ title: 'Какой ты вожатый?', text: text })
-          .catch(function () { /* пользователь отменил шеринг */ });
-        return;
-      }
-
-      // 3) Внутри VK, но файловый/текстовый Web Share недоступен — нативный шеринг ссылки от VK
-      if (vkReady && window.vkBridge && typeof vkBridge.send === 'function') {
-        withTimeout(vkBridge.send('VKWebAppShare', { link: COMMUNITY_URL }), 4000)
-          .catch(function () { showShareFallback(text, blob); });
-        return;
-      }
-
-      // 4) Совсем без Web Share API и не внутри VK (обычно — десктопный браузер)
-      showShareFallback(text, blob);
-    });
+    // 3) Ничего из этого нет (десктопный браузер вне VK) — показываем
+    // картинку и ссылку прямо в приложении
+    showShareFallback(key);
   }
 
   // ---------- Рендер ----------

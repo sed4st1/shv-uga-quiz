@@ -121,3 +121,8 @@ var QUESTIONS = [
 ];
 
 var COMMUNITY_URL = 'https://vk.ru/uga_ufu';
+
+// Публичный адрес сайта (GitHub Pages) — нужен как абсолютный домен для
+// og:image / og:url на страницах шеринга и для VKWebAppShare (VK обязан
+// суметь зайти по ссылке из интернета, localhost для этого не годится).
+var SITE_URL = 'https://sed4st1.github.io/shv-uga-quiz/';

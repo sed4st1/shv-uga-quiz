@@ -388,6 +388,7 @@ button, a {
   display: block; width: 100%; border-radius: var(--radius-pill);
   font-family: var(--font-display); font-weight: 700; font-size: 15px;
   text-transform: uppercase; letter-spacing: .04em; padding: 14px; text-align: center;
+  text-decoration: none; border: none; cursor: pointer;
 }
 .sf-btn-primary { background: var(--red); color: #fff; border: none; }
 .sf-btn-secondary { background: transparent; color: var(--red); border: 2px solid var(--red); }
