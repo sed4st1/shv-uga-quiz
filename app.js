@@ -2,12 +2,24 @@
   'use strict';
 
   // ---------- VK Bridge init (обязательно для открытия внутри VK) ----------
+  // vkReady становится true только если VKWebAppInit реально ответил — то есть
+  // мы точно внутри VK. Вне VK этот промис часто просто зависает без ответа,
+  // поэтому НЕЛЬЗЯ ждать его для остального кода — используем как флаг.
+  var vkReady = false;
   try {
     if (window.vkBridge) {
-      vkBridge.send('VKWebAppInit').catch(function () {});
+      vkBridge.send('VKWebAppInit').then(function () { vkReady = true; }).catch(function () {});
     }
   } catch (e) {
     // не в VK / bridge недоступен — продолжаем как обычную веб-страницу
+  }
+
+  function withTimeout(promise, ms) {
+    return new Promise(function (resolve, reject) {
+      var timer = setTimeout(function () { reject(new Error('timeout')); }, ms);
+      promise.then(function (v) { clearTimeout(timer); resolve(v); },
+                    function (e) { clearTimeout(timer); reject(e); });
+    });
   }
 
   // ---------- Состояние квиза храним только в памяти JS ----------
@@ -161,15 +173,14 @@
       })
     ]);
 
-    var shareBtn = el('button', { class: 'btn-share', text: 'Поделиться результатом', onclick: onShareClick });
-    var downloadBtn = el('button', { class: 'btn-outline', text: 'Скачать картинку', onclick: onDownloadClick });
     var communityLink = el('a', {
-      class: 'btn-outline', text: 'Перейти в Школу вожатых',
+      class: 'btn-share', text: 'Вступить в Школу вожатых',
       href: COMMUNITY_URL, target: '_blank', rel: 'noopener'
     });
+    var shareBtn = el('button', { class: 'btn-outline', text: 'Поделиться результатом', onclick: onShareClick });
     var restartBtn = el('button', { class: 'result-link', text: 'пройти заново', onclick: restartQuiz });
 
-    var bottom = el('div', { class: 'result-bottom' }, [shareBtn, downloadBtn, communityLink, restartBtn]);
+    var bottom = el('div', { class: 'result-bottom' }, [communityLink, shareBtn, restartBtn]);
 
     screen.appendChild(decor);
     screen.appendChild(top);
@@ -307,44 +318,110 @@
     return Promise.resolve();
   }
 
-  function onDownloadClick() {
-    fontsReady().then(function () {
-      var canvas = drawResultCanvas();
-      return canvasToBlob(canvas);
-    }).then(function (blob) {
+  function shareText(a) {
+    return 'Мой тип вожатого — ' + a.name + '. Пройди квиз и узнай свой — а потом' +
+      ' вступай в Школу вожатых РОПО Юга: там как раз таких ищут. ' + COMMUNITY_URL;
+  }
+
+  // Небольшой ненавязчивый тост для редких запасных сценариев шеринга
+  function toast(message) {
+    var node = el('div', { class: 'toast', text: message });
+    document.body.appendChild(node);
+    requestAnimationFrame(function () { node.classList.add('show'); });
+    setTimeout(function () {
+      node.classList.remove('show');
+      setTimeout(function () { node.remove(); }, 300);
+    }, 3200);
+  }
+
+  // Запасной сценарий для сред без Web Share (в основном — десктопные браузеры):
+  // показываем саму картинку и текст прямо в приложении, а не молча открываем
+  // голый PNG в новой вкладке — так понятно, что делать дальше.
+  function showShareFallback(text, blob) {
+    var existing = document.querySelector('.share-fallback-overlay');
+    if (existing) existing.remove();
+
+    var imgUrl = blob ? URL.createObjectURL(blob) : null;
+
+    function close() {
+      overlay.remove();
+      if (imgUrl) URL.revokeObjectURL(imgUrl);
+    }
+
+    function downloadImage() {
       if (!blob) return;
-      var url = URL.createObjectURL(blob);
       var a = document.createElement('a');
-      a.href = url;
+      a.href = imgUrl;
       a.download = 'kakoi-ty-vozhatyi.png';
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      setTimeout(function () { URL.revokeObjectURL(url); }, 4000);
-    });
+    }
+
+    function copyText() {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () {
+          toast('Текст скопирован — вставь его в сообщении ВКонтакте');
+        }).catch(function () {
+          toast('Не получилось скопировать — выдели текст вручную');
+        });
+      } else {
+        toast('Не получилось скопировать — выдели текст вручную');
+      }
+    }
+
+    var card = el('div', { class: 'share-fallback-card' }, [
+      el('button', { class: 'sf-x', 'aria-label': 'Закрыть', text: '✕', onclick: close }),
+      el('div', { class: 'sf-title', text: 'Отправь другу вручную' }),
+      el('div', { class: 'sf-hint', text: 'Автоматически поделиться на этом устройстве нельзя — скачай картинку и скопируй текст, дальше просто вставь их в сообщение или пост ВКонтакте.' }),
+      imgUrl ? el('img', { class: 'sf-img', src: imgUrl, alt: 'Результат квиза' }) : null,
+      el('div', { class: 'sf-text', text: text }),
+      el('button', { class: 'sf-btn-primary', text: 'Скачать картинку', onclick: downloadImage }),
+      el('button', { class: 'sf-btn-secondary', text: 'Скопировать текст', onclick: copyText }),
+      el('button', { class: 'sf-close', text: 'Закрыть', onclick: close })
+    ]);
+
+    var overlay = el('div', {
+      class: 'share-fallback-overlay',
+      onclick: function (e) { if (e.target === overlay) close(); }
+    }, [card]);
+
+    document.body.appendChild(overlay);
   }
 
   function onShareClick() {
+    var a = ARCHETYPES[state.resultKey];
+    var text = shareText(a);
+
     fontsReady().then(function () {
       var canvas = drawResultCanvas();
       return canvasToBlob(canvas);
     }).then(function (blob) {
-      if (!blob) { onDownloadClick(); return; }
-      var file = new File([blob], 'kakoi-ty-vozhatyi.png', { type: 'image/png' });
+      var file = blob ? new File([blob], 'kakoi-ty-vozhatyi.png', { type: 'image/png' }) : null;
 
-      if (navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
-        navigator.share({
-          files: [file],
-          title: 'Какой ты вожатый?',
-          text: 'Я прошёл(-а) квиз «Какой ты вожатый?» — присоединяйся: ' + COMMUNITY_URL
-        }).catch(function () {
-          // пользователь отменил шеринг — ничего не делаем
-        });
+      // 1) Полноценный шеринг картинки + текста (лучший случай на мобильных браузерах)
+      if (file && navigator.canShare && navigator.canShare({ files: [file] }) && navigator.share) {
+        navigator.share({ files: [file], title: 'Какой ты вожатый?', text: text })
+          .catch(function () { /* пользователь отменил шеринг */ });
         return;
       }
 
-      // Файловый Web Share не поддержан (частый случай во VK WebView) — скачиваем картинку
-      onDownloadClick();
+      // 2) Веб Шеринг без файлов — просто текст со ссылкой на группу
+      if (navigator.share) {
+        navigator.share({ title: 'Какой ты вожатый?', text: text })
+          .catch(function () { /* пользователь отменил шеринг */ });
+        return;
+      }
+
+      // 3) Внутри VK, но файловый/текстовый Web Share недоступен — нативный шеринг ссылки от VK
+      if (vkReady && window.vkBridge && typeof vkBridge.send === 'function') {
+        withTimeout(vkBridge.send('VKWebAppShare', { link: COMMUNITY_URL }), 4000)
+          .catch(function () { showShareFallback(text, blob); });
+        return;
+      }
+
+      // 4) Совсем без Web Share API и не внутри VK (обычно — десктопный браузер)
+      showShareFallback(text, blob);
     });
   }
 

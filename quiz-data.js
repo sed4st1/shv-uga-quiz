@@ -120,4 +120,4 @@ var QUESTIONS = [
   }
 ];
 
-var COMMUNITY_URL = 'https://vk.com/shv_uga';
+var COMMUNITY_URL = 'https://vk.ru/uga_ufu';

@@ -210,19 +210,106 @@ button, a {
   font-family: var(--font-display); font-weight: 700; font-size: 18px;
   text-transform: uppercase; letter-spacing: .04em;
   padding: 17px; border-radius: var(--radius-pill);
-  text-align: center; box-shadow: 0 6px 0 rgba(0,0,0,.22);
+  text-align: center; text-decoration: none;
+  box-shadow: 0 6px 0 rgba(0,0,0,.22);
 }
 .btn-share:active { transform: translateY(3px); box-shadow: 0 3px 0 rgba(0,0,0,.22); }
 
 .result-link { text-align: center; font-size: 13px; color: #fff; opacity: .78; background: none; border: none; padding: 6px; text-decoration: underline; }
 
-.hidden-canvas-preview {
-  margin-top: 4px;
-  border-radius: 14px;
-  overflow: hidden;
-  border: 1px solid rgba(255,255,255,.35);
+/* ---------- Запасной экран шеринга (когда Web Share недоступен) ---------- */
+
+.share-fallback-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 15, 13, .55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 60;
 }
-.hidden-canvas-preview img { display: block; width: 100%; height: auto; }
+
+.share-fallback-card {
+  background: #fff;
+  color: var(--ink);
+  border-radius: var(--radius-card);
+  padding: 24px;
+  max-width: 380px;
+  width: 100%;
+  max-height: 88vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  position: relative;
+}
+
+.sf-x {
+  position: absolute;
+  top: 14px; right: 14px;
+  width: 32px; height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--warm);
+  color: var(--muted);
+  font-size: 15px;
+  line-height: 1;
+  display: flex; align-items: center; justify-content: center;
+}
+
+.sf-title {
+  padding-right: 32px;
+  font-family: var(--font-display); font-weight: 700; font-size: 20px;
+  text-transform: uppercase; letter-spacing: .01em;
+}
+.sf-hint { font-size: 14px; line-height: 1.45; color: var(--muted); }
+
+.sf-img {
+  width: 100%;
+  border-radius: 14px;
+  display: block;
+  border: 1px solid var(--line-strong);
+}
+
+.sf-text {
+  font-size: 14px; line-height: 1.5;
+  background: var(--warm);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px 14px;
+  white-space: pre-wrap;
+  user-select: all;
+}
+
+.sf-btn-primary, .sf-btn-secondary, .sf-close {
+  display: block; width: 100%; border-radius: var(--radius-pill);
+  font-family: var(--font-display); font-weight: 700; font-size: 15px;
+  text-transform: uppercase; letter-spacing: .04em; padding: 14px; text-align: center;
+}
+.sf-btn-primary { background: var(--red); color: #fff; border: none; }
+.sf-btn-secondary { background: transparent; color: var(--red); border: 2px solid var(--red); }
+.sf-close { background: none; color: var(--muted); border: none; font-weight: 500; text-transform: none; padding: 4px; letter-spacing: normal; }
+
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  transform: translate(-50%, 12px);
+  max-width: calc(100% - 48px);
+  background: var(--ink);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1.4;
+  padding: 12px 18px;
+  border-radius: 14px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.28);
+  opacity: 0;
+  transition: opacity .25s ease, transform .25s ease;
+  z-index: 50;
+  text-align: center;
+}
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 /* ---------- Desktop / широкий экран ---------- */
 
