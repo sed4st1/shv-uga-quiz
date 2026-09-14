@@ -47,31 +47,95 @@ button, a {
   cursor: pointer;
 }
 
-/* ---------- Общие декоративные элементы (хэштеги + пульс колец) ---------- */
+/* ---------- Общие декоративные элементы (хэштеги + анимация ленты) ---------- */
 
+/* Хэштег-текстура: развёрнута на угол, замаскирована к краям и очень
+   медленно дрейфует по горизонтали — читается как лёгкая фоновая деталь,
+   а не ровная решётка (у каждой строки свой размер и прозрачность,
+   задаются инлайново в JS). */
 .brand-hashtags {
   position: absolute;
-  inset: -10px;
-  opacity: .13;
-  color: #fff;
-  font-family: var(--font-body);
-  font-weight: 700;
-  font-size: 18px;
-  line-height: 1.85;
-  letter-spacing: .02em;
-  word-spacing: 6px;
+  inset: -30%;
   overflow: hidden;
   pointer-events: none;
   user-select: none;
+  transform: rotate(-6deg);
+  -webkit-mask-image: radial-gradient(ellipse at center, black 40%, transparent 82%);
+  mask-image: radial-gradient(ellipse at center, black 40%, transparent 82%);
+}
+.brand-hashtags-inner {
+  position: absolute;
+  inset: 0;
+  width: 140%;
+  animation: hashtagDrift 52s ease-in-out infinite alternate;
+}
+.hashtag-row {
+  color: #fff;
+  font-family: var(--font-body);
+  font-weight: 700;
+  white-space: nowrap;
+  letter-spacing: .02em;
+  word-spacing: 6px;
+  line-height: 1.85;
+}
+@keyframes hashtagDrift {
+  0% { transform: translateX(-4%); }
+  100% { transform: translateX(4%); }
 }
 
+/* Лента-цветок: два независимых слоя движения на разных обёртках, чтобы
+   scale и rotate не конфликтовали в одном transform — внешний покачивается,
+   внутренний дышит пульсом. Разные периоды (9.5s / 6s) — чтобы совпадения
+   не выглядели механическими. */
 @keyframes pulseRing {
   0%, 100% { transform: scale(1); }
   50% { transform: scale(1.04); }
 }
-.hero-decor, .result-decor { animation: pulseRing 6s ease-in-out infinite; }
+@keyframes wobbleRing {
+  0%, 100% { transform: rotate(-3deg); }
+  50% { transform: rotate(3deg); }
+}
+.hero-decor, .result-decor { animation: wobbleRing 9.5s ease-in-out infinite; }
+.hero-decor-scale, .result-decor-scale {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  animation: pulseRing 6s ease-in-out infinite;
+}
+
 @media (prefers-reduced-motion: reduce) {
-  .hero-decor, .result-decor { animation: none; }
+  .brand-hashtags-inner { animation: none; }
+  .hero-decor, .result-decor, .hero-decor-scale, .result-decor-scale { animation: none; }
+}
+
+/* Портальный переход старт → вопрос (см. runPortalTransition в app.js) */
+.portal-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 999;
+  pointer-events: none;
+  will-change: clip-path;
+  transition:
+    clip-path .52s cubic-bezier(.2,.8,.2,1),
+    -webkit-clip-path .52s cubic-bezier(.2,.8,.2,1),
+    background-color .52s cubic-bezier(.2,.8,.2,1);
+}
+
+/* Каскадная подача элементов стартового экрана при первой загрузке
+   (см. introPlayed в app.js) — только opacity/translateY, без пружины. */
+.enter-item {
+  opacity: 0;
+  transform: translateY(10px);
+  transition: opacity .38s ease-out, transform .38s ease-out;
+}
+.enter-run .enter-item { opacity: 1; transform: translateY(0); }
+.enter-d0 { transition-delay: 0ms; }
+.enter-d1 { transition-delay: 70ms; }
+.enter-d2 { transition-delay: 150ms; }
+.enter-d3 { transition-delay: 230ms; }
+.enter-d4 { transition-delay: 300ms; }
+@media (prefers-reduced-motion: reduce) {
+  .enter-item { opacity: 1; transform: none; transition: none; }
 }
 
 /* ---------- Hero screens (старт / финал) ---------- */
@@ -140,9 +204,16 @@ button, a {
   text-transform: uppercase; letter-spacing: .04em;
   padding: 18px; border-radius: var(--radius-pill);
   text-align: center; box-shadow: 0 6px 0 var(--red-deep);
-  transition: transform .12s ease;
+  transition: transform .15s ease, box-shadow .15s ease;
 }
-.btn-cta:active { transform: translateY(3px); box-shadow: 0 3px 0 var(--red-deep); }
+/* Наведение (только там, где есть настоящий hover, не на тач-экранах) —
+   лёгкий подъём с обратной от нажатия логикой. */
+@media (hover: hover) {
+  .btn-cta:hover { transform: translateY(-2px); box-shadow: 0 8px 0 var(--red-deep); }
+}
+/* Нажатие — кнопка "проседает" ровно на высоту тени, тень схлопывается,
+   как у настоящей физической кнопки. Возврат — те же 150ms transition выше. */
+.btn-cta:active { transform: translateY(6px); box-shadow: 0 0 0 var(--red-deep); }
 
 .btn-outline {
   display: block; width: 100%;
@@ -239,8 +310,12 @@ button, a {
   padding: 17px; border-radius: var(--radius-pill);
   text-align: center; text-decoration: none;
   box-shadow: 0 6px 0 rgba(0,0,0,.22);
+  transition: transform .15s ease, box-shadow .15s ease;
 }
-.btn-share:active { transform: translateY(3px); box-shadow: 0 3px 0 rgba(0,0,0,.22); }
+@media (hover: hover) {
+  .btn-share:hover { transform: translateY(-2px); box-shadow: 0 8px 0 rgba(0,0,0,.22); }
+}
+.btn-share:active { transform: translateY(6px); box-shadow: 0 0 0 rgba(0,0,0,.22); }
 
 .result-link { text-align: center; font-size: 13px; color: #fff; opacity: .78; background: none; border: none; padding: 6px; text-decoration: underline; }
 

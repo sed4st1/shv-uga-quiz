@@ -46,39 +46,70 @@
     return node;
   }
 
+  function prefersReducedMotion() {
+    return !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  }
+
   // Фоновая текстура из полупрозрачных хэштегов — фирменный приём бренда,
   // используется на обоих полноцветных экранах (старт и результат).
-  var HASHTAG_LINE = new Array(40).fill('#ВожатыеЮга').join(' ');
+  // Каждая строка получает свой размер шрифта и прозрачность (по золотому
+  // сечению — детерминированный, но визуально "случайный" разброс), чтобы
+  // текстура читалась как лёгкая органичная деталь, а не ровная решётка.
+  var HASHTAG_ROW_TEXT = new Array(16).fill('#ВожатыеЮга').join(' ');
+  var HASHTAG_ROWS = 14;
   function hashtagBackdrop() {
-    return el('div', { class: 'brand-hashtags', text: HASHTAG_LINE, 'aria-hidden': 'true' });
+    var rows = [];
+    for (var i = 0; i < HASHTAG_ROWS; i++) {
+      var tOpacity = (i * 0.618034) % 1;
+      var tSize = (i * 0.381966) % 1;
+      var opacity = (0.08 + tOpacity * 0.10).toFixed(3);
+      var fontSize = Math.round(15 + tSize * 9);
+      rows.push(el('div', {
+        class: 'hashtag-row',
+        text: HASHTAG_ROW_TEXT,
+        style: 'opacity:' + opacity + ';font-size:' + fontSize + 'px'
+      }));
+    }
+    var inner = el('div', { class: 'brand-hashtags-inner' }, rows);
+    return el('div', { class: 'brand-hashtags', 'aria-hidden': 'true' }, [inner]);
   }
+
+  // Каскадная подача элементов стартового экрана — только при самой первой
+  // загрузке страницы (не при возврате на старт через "пройти заново").
+  var introPlayed = false;
 
   // ---------- Экран старта ----------
   function renderStart() {
     var screen = el('div', { class: 'screen-hero' });
+    var playIntro = !introPlayed;
+    function enterCls(base, delayClass) {
+      return playIntro ? base + ' enter-item ' + delayClass : base;
+    }
 
     var hashtags = hashtagBackdrop();
 
     var decor = el('div', { class: 'hero-decor' }, [
-      el('span', { class: 'ring1' }), el('span', { class: 'ring2' }),
-      el('span', { class: 'ring3' }), el('span', { class: 'ring4' }),
-      el('span', { class: 'core' })
+      el('div', { class: 'hero-decor-scale' }, [
+        el('span', { class: 'ring1' }), el('span', { class: 'ring2' }),
+        el('span', { class: 'ring3' }), el('span', { class: 'ring4' }),
+        el('span', { class: 'core' })
+      ])
     ]);
 
-    var top = el('div', { class: 'hero-top' }, [
+    var top = el('div', { class: enterCls('hero-top', 'enter-d0') }, [
       el('div', { class: 'hero-badge', text: 'ШВ' }),
       el('div', { class: 'hero-brand', text: 'Школа вожатых Юга ЮФУ' })
     ]);
 
     var mid = el('div', { class: 'hero-mid' }, [
-      el('div', { class: 'hero-title', text: 'Осень. Лето где-то рядом.' }),
-      el('div', { class: 'hero-text', html: 'Учёба началась. Друзья рядом. Но чего-то не хватает.<br>Пройди квиз — узнай, какой ты вожатый.' })
+      el('div', { class: enterCls('hero-title', 'enter-d1'), text: 'Осень. Лето где-то рядом.' }),
+      el('div', { class: enterCls('hero-text', 'enter-d2'), html: 'Учёба началась. Друзья рядом. Но чего-то не хватает.<br>Пройди квиз — узнай, какой ты вожатый.' })
     ]);
 
-    var startBtn = el('button', { class: 'btn-cta', text: 'Начать', onclick: startQuiz });
+    var startBtn = el('button', { class: enterCls('btn-cta', 'enter-d3'), text: 'Начать', onclick: startQuiz });
     var bottom = el('div', { class: 'hero-bottom' }, [
       startBtn,
-      el('div', { class: 'hero-fine', text: '7 вопросов · 2 минуты' })
+      el('div', { class: enterCls('hero-fine', 'enter-d4'), text: '7 вопросов · 2 минуты' })
     ]);
 
     screen.appendChild(hashtags);
@@ -86,15 +117,82 @@
     screen.appendChild(top);
     screen.appendChild(mid);
     screen.appendChild(bottom);
+
+    if (playIntro) {
+      introPlayed = true;
+      requestAnimationFrame(function () {
+        requestAnimationFrame(function () { screen.classList.add('enter-run'); });
+      });
+    }
+
     return screen;
   }
 
+  // Портальный переход: лента-цветок стремительно разрастается от своей
+  // позиции на экране и закрывает viewport, одновременно меняя цвет
+  // с бренд-красного на кремовый фон экрана вопроса. Экран вопроса уже
+  // монтируется под этим слоем, поэтому после его удаления не видно
+  // ни задержки, ни домигивания.
+  function runPortalTransition(originEl, onMidpoint) {
+    var supportsClip = !!(window.CSS && CSS.supports && CSS.supports('clip-path', 'circle(0px at 0px 0px)'));
+
+    if (prefersReducedMotion() || !supportsClip) {
+      appEl.style.transition = 'opacity .15s ease';
+      appEl.style.opacity = '0';
+      setTimeout(function () {
+        onMidpoint();
+        requestAnimationFrame(function () {
+          appEl.style.opacity = '1';
+          setTimeout(function () { appEl.style.transition = ''; appEl.style.opacity = ''; }, 200);
+        });
+      }, 150);
+      return;
+    }
+
+    var rect = originEl ? originEl.getBoundingClientRect() : null;
+    var originX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+    var originY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+    var startRadius = rect ? Math.max(rect.width, rect.height) / 2 : 10;
+    var dx = Math.max(originX, window.innerWidth - originX);
+    var dy = Math.max(originY, window.innerHeight - originY);
+    var endRadius = Math.hypot(dx, dy) * 1.15;
+
+    var overlay = document.createElement('div');
+    overlay.className = 'portal-layer';
+    var startClip = 'circle(' + startRadius + 'px at ' + originX + 'px ' + originY + 'px)';
+    overlay.style.clipPath = startClip;
+    overlay.style.webkitClipPath = startClip;
+    overlay.style.backgroundColor = '#C4192B';
+    document.body.appendChild(overlay);
+
+    // Форсируем рефлоу — иначе браузер может схлопнуть старт и финиш
+    // в один кадр и переход не заанимируется.
+    // eslint-disable-next-line no-unused-expressions
+    overlay.getBoundingClientRect();
+
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () {
+        var endClip = 'circle(' + endRadius + 'px at ' + originX + 'px ' + originY + 'px)';
+        overlay.style.clipPath = endClip;
+        overlay.style.webkitClipPath = endClip;
+        overlay.style.backgroundColor = '#FDF6F3';
+      });
+    });
+
+    onMidpoint();
+
+    setTimeout(function () { overlay.remove(); }, 560);
+  }
+
   function startQuiz() {
-    state.step = 'question';
-    state.qIndex = 0;
-    state.scores = { spark: 0, keeper: 0, game: 0, guide: 0, dreamer: 0 };
-    state.resultKey = null;
-    render();
+    var origin = document.querySelector('.hero-decor');
+    runPortalTransition(origin, function () {
+      state.step = 'question';
+      state.qIndex = 0;
+      state.scores = { spark: 0, keeper: 0, game: 0, guide: 0, dreamer: 0 };
+      state.resultKey = null;
+      render();
+    });
   }
 
   function restartQuiz() {
@@ -171,7 +269,9 @@
     var hashtags = hashtagBackdrop();
 
     var decor = el('div', { class: 'result-decor' }, [
-      el('span', { class: 'r1' }), el('span', { class: 'r2' }), el('span', { class: 'r3' })
+      el('div', { class: 'result-decor-scale' }, [
+        el('span', { class: 'r1' }), el('span', { class: 'r2' }), el('span', { class: 'r3' })
+      ])
     ]);
 
     var top = el('div', { class: 'result-top' }, [
