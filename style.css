@@ -134,6 +134,16 @@ button, a {
 .enter-d2 { transition-delay: 150ms; }
 .enter-d3 { transition-delay: 230ms; }
 .enter-d4 { transition-delay: 300ms; }
+
+/* Каскад текста на экране результата — та же механика, но стартует позже:
+   сперва должны отрисоваться орбиты (~340ms) и собраться "созвездие"
+   звёзд (6 × 80ms ≈ 480ms), текст идёт следом, не одновременно с ними. */
+.result-enter-d0 { transition-delay: 650ms; }
+.result-enter-d1 { transition-delay: 720ms; }
+.result-enter-d2 { transition-delay: 790ms; }
+.result-enter-d3 { transition-delay: 860ms; }
+.result-enter-d4 { transition-delay: 930ms; }
+
 @media (prefers-reduced-motion: reduce) {
   .enter-item { opacity: 1; transform: none; transition: none; }
 }
@@ -193,7 +203,7 @@ button, a {
   text-transform: uppercase; letter-spacing: -0.01em;
   text-wrap: balance;
 }
-.hero-text { font-size: 16px; line-height: 1.55; max-width: 340px; opacity: .96; }
+.hero-text { font-size: 16px; line-height: 1.55; max-width: 340px; color: rgba(255,255,255,.96); }
 
 .hero-bottom { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 14px; }
 
@@ -225,7 +235,7 @@ button, a {
   text-align: center; text-decoration: none;
 }
 
-.hero-fine { text-align: center; font-size: 12.5px; opacity: .75; }
+.hero-fine { text-align: center; font-size: 12.5px; color: rgba(255,255,255,.75); }
 .hero-link { text-align: center; font-size: 13px; opacity: .8; color: #fff; background: none; border: none; padding: 4px; text-decoration: underline; }
 
 /* ---------- Экран вопроса ---------- */
@@ -243,9 +253,12 @@ button, a {
   font-family: var(--font-display); font-weight: 600; font-size: 12.5px;
   letter-spacing: .14em; text-transform: uppercase; color: var(--red);
 }
-.q-restart {
-  font-size: 13px; color: var(--red-deep); opacity: .65; background: none; border: none; padding: 4px;
+.q-back {
+  font-size: 20px; line-height: 1; color: var(--red-deep); opacity: .8;
+  background: none; border: none; padding: 6px 8px; margin: -6px -8px;
+  border-radius: 10px; transition: transform .15s ease, opacity .15s ease;
 }
+.q-back:active { opacity: 1; transform: translateX(-3px); }
 
 .q-dots { display: flex; gap: 6px; padding-bottom: 24px; }
 .q-dots span { height: 8px; border-radius: var(--radius-pill); flex: 1; background: var(--line); transition: background .2s ease; }
@@ -272,7 +285,26 @@ button, a {
 .q-option .dot {
   width: 22px; height: 22px; flex: none; margin-top: 1px;
   border-radius: 50%; border: 2px solid #E0B6BE;
+  transition: background .15s ease, border-color .15s ease;
 }
+.q-option.selected { border-color: var(--red); box-shadow: 0 2px 0 var(--red); }
+.q-option.selected .dot { border-color: var(--red); background: var(--red); }
+
+/* ---------- Переход между вопросами (и вопрос 1 <-> старт) ----------
+   Один и тот же механизм в обе стороны: уходящий экран отсоединяется от
+   #app (см. slideQuestionTransition) и получает position:fixed, поэтому
+   доигрывает анимацию поверх уже смонтированного следующего экрана. */
+.q-transition-exit-layer { position: fixed; inset: 0; z-index: 40; pointer-events: none; }
+
+@keyframes qSlideOutLeft { from { transform: translateX(0); opacity: 1; } to { transform: translateX(-26px); opacity: 0; } }
+@keyframes qSlideOutRight { from { transform: translateX(0); opacity: 1; } to { transform: translateX(26px); opacity: 0; } }
+@keyframes qSlideInFromRight { from { transform: translateX(26px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+@keyframes qSlideInFromLeft { from { transform: translateX(-26px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+.q-slide-exit-forward { animation: qSlideOutLeft 200ms ease-out both; }
+.q-slide-exit-backward { animation: qSlideOutRight 200ms ease-out both; }
+.q-slide-enter-forward { animation: qSlideInFromRight 200ms ease-out both; }
+.q-slide-enter-backward { animation: qSlideInFromLeft 200ms ease-out both; }
 
 /* ---------- Экран результата ---------- */
 
@@ -290,10 +322,76 @@ button, a {
 .result-decor .r2 { left: 88px; top: 88px; width: 134px; height: 134px; opacity: .5; background: var(--r-deco, #F5A3B5); }
 .result-decor .r3 { left: 0; top: 150px; width: 110px; height: 110px; border: 8px solid var(--r-deco, #F5A3B5); }
 
+/* ---------- Декоративный слой результата (Часть 2) ----------
+   Язык референс-карточек: орбитальные кольца со спутниками, мерцающие
+   звёзды, зерно, диагональный луч, точечная сетка — всё цветом
+   var(--r-deco), которую .screen-result уже выставляет под архетип.
+   Слой строго фоновый: pointer-events:none везде, z-index не задаём —
+   он просто рисуется первым, до .result-top/.result-bottom (z-index:1). */
+
+.result-grain {
+  position: absolute; inset: 0;
+  opacity: .045;
+  mix-blend-mode: overlay;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-size: 180px 180px;
+}
+
+.result-beam {
+  position: absolute;
+  top: -15%; right: -25%;
+  width: 75%; height: 150%;
+  background: linear-gradient(115deg, transparent 42%, rgba(255,255,255,.12) 52%, transparent 62%);
+  pointer-events: none;
+}
+
+.result-dotgrid {
+  position: absolute; top: 26px; right: 26px;
+  display: grid; grid-template-columns: repeat(3, 5px); gap: 7px;
+  pointer-events: none;
+}
+.result-dotgrid span { width: 4px; height: 4px; border-radius: 50%; background: var(--r-deco, #fff); opacity: .55; }
+
+.result-orbits {
+  position: absolute; inset: 0; pointer-events: none;
+  animation: orbitDrawIn 340ms ease-out both;
+}
+.result-orbits-spin { position: absolute; inset: 0; animation: orbitSpin 34s linear infinite; }
+.orbit-ring {
+  position: absolute; border: 1px solid var(--r-deco, #fff);
+  border-radius: 50%; opacity: .32;
+}
+.orbit-dot {
+  position: absolute; top: 50%; right: -3px;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--r-deco, #fff); opacity: .8;
+  transform: translateY(-50%);
+}
+@keyframes orbitDrawIn { from { opacity: 0; transform: scale(.8); } to { opacity: 1; transform: scale(1); } }
+@keyframes orbitSpin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+.result-stars { position: absolute; inset: 0; pointer-events: none; }
+.result-star {
+  position: absolute; opacity: 0; color: var(--r-deco, #fff);
+  animation-name: starTwinkle; animation-timing-function: ease-in-out; animation-iteration-count: infinite;
+}
+.result-star svg { display: block; width: 100%; height: 100%; }
+@keyframes starTwinkle {
+  0%, 100% { opacity: .3; transform: scale(.85); }
+  50% { opacity: 1; transform: scale(1.08); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .result-orbits { animation: none; opacity: 1; transform: none; }
+  .result-orbits-spin { animation: none; }
+  .result-star { animation: none; opacity: .7; }
+}
+
 .result-top { position: relative; z-index: 1; display: flex; flex-direction: column; gap: 16px; }
-.result-eyebrow { font-family: var(--font-display); font-weight: 600; font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase; opacity: .82; }
+.result-eyebrow { font-family: var(--font-display); font-weight: 600; font-size: 12.5px; letter-spacing: .14em; text-transform: uppercase; color: rgba(255,255,255,.82); }
 .result-name { font-family: var(--font-display); font-weight: 700; font-size: clamp(38px, 12vw, 56px); line-height: .9; text-transform: uppercase; }
-.result-desc { font-size: 16px; line-height: 1.5; max-width: 320px; text-wrap: pretty; opacity: .98; }
+.result-desc { font-size: 16px; line-height: 1.5; max-width: 320px; text-wrap: pretty; color: rgba(255,255,255,.98); }
 
 .result-note {
   background: rgba(255,255,255,.15); border-radius: 16px;

@@ -23,10 +23,17 @@
   }
 
   // ---------- Состояние квиза храним только в памяти JS ----------
+  // answers — индекс выбранного варианта (0..4) для каждого вопроса,
+  // null пока не отвечен. Баллы по архетипам всегда пересчитываются из
+  // этого массива заново (computeResult), а не копятся отдельным
+  // счётчиком — иначе шаг назад с изменением ответа было бы легко
+  // рассинхронизировать со старым выбором.
+  function emptyAnswers() { return new Array(QUESTIONS.length).fill(null); }
+
   var state = {
     step: 'start', // 'start' | 'question' | 'result'
     qIndex: 0,
-    scores: { spark: 0, keeper: 0, game: 0, guide: 0, dreamer: 0 },
+    answers: emptyAnswers(),
     resultKey: null
   };
 
@@ -189,7 +196,7 @@
     runPortalTransition(origin, function () {
       state.step = 'question';
       state.qIndex = 0;
-      state.scores = { spark: 0, keeper: 0, game: 0, guide: 0, dreamer: 0 };
+      state.answers = emptyAnswers();
       state.resultKey = null;
       render();
     });
@@ -197,17 +204,50 @@
 
   function restartQuiz() {
     state.step = 'start';
+    state.qIndex = 0;
+    state.answers = emptyAnswers();
+    state.resultKey = null;
     render();
+  }
+
+  // Переход между экранами вопросов (и вопрос 1 <-> старт) — тот же
+  // механизм в обе стороны, только зеркальный: вперёд уходит влево и
+  // въезжает справа, назад — наоборот. Старый экран отсоединяется от
+  // #app и доигрывает анимацию поверх уже смонтированного нового,
+  // чтобы не ждать окончания выхода перед показом следующего шага.
+  function slideQuestionTransition(direction, mutateAndRender) {
+    if (prefersReducedMotion()) { mutateAndRender(); return; }
+
+    var outClass = direction === 'forward' ? 'q-slide-exit-forward' : 'q-slide-exit-backward';
+    var inClass = direction === 'forward' ? 'q-slide-enter-forward' : 'q-slide-enter-backward';
+
+    var leaving = document.querySelector('.screen-question, .screen-hero');
+    if (leaving) {
+      document.body.appendChild(leaving); // отсоединяем от #app, не трогая содержимое
+      leaving.classList.add('q-transition-exit-layer', outClass);
+      setTimeout(function () { leaving.remove(); }, 220);
+    }
+
+    mutateAndRender();
+
+    // Каскад входа результата (Часть 2) — самостоятельный "момент награды",
+    // ему не нужна общая задвижка слайда поверх него.
+    var entering = document.querySelector('.screen-question, .screen-hero');
+    if (entering) {
+      entering.classList.add(inClass);
+      setTimeout(function () { entering.classList.remove(inClass); }, 220);
+    }
   }
 
   // ---------- Экран вопроса ----------
   function renderQuestion() {
     var q = QUESTIONS[state.qIndex];
+    var selected = state.answers[state.qIndex];
     var screen = el('div', { class: 'screen-question' });
 
     var head = el('div', { class: 'q-head' }, [
       el('div', { class: 'q-label', text: 'Вопрос ' + (state.qIndex + 1) + ' из ' + QUESTIONS.length }),
-      el('button', { class: 'q-restart', text: 'заново', onclick: restartQuiz })
+      el('button', { class: 'q-back', 'aria-label': 'Назад', text: '←', onclick: goBack })
     ]);
 
     var dots = el('div', { class: 'q-dots' });
@@ -221,7 +261,7 @@
     var options = el('div', { class: 'q-options' });
     q.options.forEach(function (text, idx) {
       var btn = el('button', {
-        class: 'q-option',
+        class: 'q-option' + (idx === selected ? ' selected' : ''),
         onclick: function () { pickAnswer(idx); }
       }, [
         el('span', { class: 'dot' }),
@@ -238,27 +278,102 @@
   }
 
   function pickAnswer(optionIndex) {
-    var archetype = ARCHETYPE_ORDER[optionIndex];
-    state.scores[archetype] = (state.scores[archetype] || 0) + 1;
+    state.answers[state.qIndex] = optionIndex;
 
     if (state.qIndex + 1 >= QUESTIONS.length) {
       state.resultKey = computeResult();
-      state.step = 'result';
+      slideQuestionTransition('forward', function () {
+        state.step = 'result';
+        render();
+      });
     } else {
-      state.qIndex += 1;
+      slideQuestionTransition('forward', function () {
+        state.qIndex += 1;
+        render();
+      });
     }
-    render();
+  }
+
+  // Шаг назад всегда доступен: с первого вопроса ведёт на старт (не прячем
+  // и не блокируем стрелку). Полный сброс прогресса делает только
+  // «пройти заново» на экране результата.
+  function goBack() {
+    if (state.qIndex === 0) {
+      slideQuestionTransition('backward', function () {
+        state.step = 'start';
+        render();
+      });
+      return;
+    }
+    slideQuestionTransition('backward', function () {
+      state.qIndex -= 1;
+      render();
+    });
   }
 
   function computeResult() {
+    var scores = { spark: 0, keeper: 0, game: 0, guide: 0, dreamer: 0 };
+    state.answers.forEach(function (optionIndex) {
+      if (optionIndex === null || optionIndex === undefined) return;
+      var key = ARCHETYPE_ORDER[optionIndex];
+      scores[key] = (scores[key] || 0) + 1;
+    });
     var best = ARCHETYPE_ORDER[0];
     ARCHETYPE_ORDER.forEach(function (key) {
-      if ((state.scores[key] || 0) > (state.scores[best] || 0)) best = key;
+      if ((scores[key] || 0) > (scores[best] || 0)) best = key;
     });
     return best;
   }
 
   // ---------- Экран результата ----------
+  // Декоративный фоновый слой результата — берёт визуальный язык
+  // референс-карточек (орбитальные кольца со спутниками, мерцающие
+  // звёзды, зерно, световой луч, точечная сетка) и оживляет его. Цвет
+  // везде — var(--r-deco), подставленный на .screen-result, поэтому под
+  // архетип подстраивается само.
+  function resultDecorLayer() {
+    var grain = el('div', { class: 'result-grain', 'aria-hidden': 'true' });
+    var beam = el('div', { class: 'result-beam', 'aria-hidden': 'true' });
+    var dotgrid = el('div', { class: 'result-dotgrid', 'aria-hidden': 'true' },
+      new Array(6).fill(0).map(function () { return el('span', {}); })
+    );
+
+    var ringSpecs = [
+      { w: 340, h: 220, top: '6%', left: '46%', rot: -22 },
+      { w: 250, h: 165, top: '30%', left: '58%', rot: 18 },
+      { w: 190, h: 130, top: '54%', left: '30%', rot: 42 }
+    ];
+    var rings = ringSpecs.map(function (r) {
+      return el('div', {
+        class: 'orbit-ring',
+        style: 'width:' + r.w + 'px;height:' + r.h + 'px;top:' + r.top + ';left:' + r.left +
+          ';transform:rotate(' + r.rot + 'deg);'
+      }, [el('span', { class: 'orbit-dot' })]);
+    });
+    var orbitsSpin = el('div', { class: 'result-orbits-spin' }, rings);
+    var orbits = el('div', { class: 'result-orbits', 'aria-hidden': 'true' }, [orbitsSpin]);
+
+    var starSpecs = [
+      { top: '12%', left: '20%', size: 16, dur: 3.2, delay: 0 },
+      { top: '20%', left: '82%', size: 22, dur: 3.7, delay: 80 },
+      { top: '46%', left: '88%', size: 14, dur: 3.4, delay: 160 },
+      { top: '66%', left: '12%', size: 18, dur: 4.1, delay: 240 },
+      { top: '78%', left: '70%', size: 12, dur: 3.9, delay: 320 },
+      { top: '38%', left: '8%', size: 20, dur: 3.5, delay: 400 }
+    ];
+    var stars = starSpecs.map(function (s) {
+      return el('div', {
+        class: 'result-star',
+        style: 'top:' + s.top + ';left:' + s.left + ';width:' + s.size + 'px;height:' + s.size + 'px;' +
+          'animation-duration:' + s.dur + 's;animation-delay:' + s.delay + 'ms;',
+        html: '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 2l1.8 6.2L20 10l-6.2 1.8L12 18l-1.8-6.2L4 10l6.2-1.8L12 2z"/></svg>'
+      });
+    });
+    var starsLayer = el('div', { class: 'result-stars', 'aria-hidden': 'true' }, stars);
+
+    return [grain, beam, orbits, starsLayer, dotgrid];
+  }
+
   function renderResult() {
     var a = ARCHETYPES[state.resultKey];
     var screen = el('div', { class: 'screen-result' });
@@ -267,6 +382,7 @@
     screen.style.background = 'linear-gradient(150deg,' + a.color1 + ',' + a.color2 + ')';
 
     var hashtags = hashtagBackdrop();
+    var decorLayer = resultDecorLayer();
 
     var decor = el('div', { class: 'result-decor' }, [
       el('div', { class: 'result-decor-scale' }, [
@@ -274,11 +390,15 @@
       ])
     ]);
 
+    // Каскад текстового блока — та же механика, что на старте (enter-item
+    // + enter-run), но с отдельными, более поздними задержками: должен
+    // начаться уже после того, как отрисуются орбиты и соберётся "созвездие"
+    // звёзд, а не одновременно с ними.
     var top = el('div', { class: 'result-top' }, [
-      el('div', { class: 'result-eyebrow', text: 'Твой тип вожатого' }),
-      el('div', { class: 'result-name', text: 'Ты — ' + a.name + '!' }),
-      el('div', { class: 'result-desc', text: a.desc }),
-      el('div', { class: 'result-note', html:
+      el('div', { class: 'result-eyebrow enter-item result-enter-d0', text: 'Твой тип вожатого' }),
+      el('div', { class: 'result-name enter-item result-enter-d1', text: 'Ты — ' + a.name + '!' }),
+      el('div', { class: 'result-desc enter-item result-enter-d2', text: a.desc }),
+      el('div', { class: 'result-note enter-item result-enter-d3', html:
         'Кем бы ты ни был — все эти роли нужны в отряде.<br><br>' +
         'Осень — не конец лета. Это время подготовиться, чтобы следующее лето было самым ярким.<br><br>' +
         'Приглашаем тебя в Школу Вожатского Мастерства. Здесь ты найдёшь команду, прокачаешь себя и получишь путёвку в лето.'
@@ -292,12 +412,18 @@
     var shareBtn = el('button', { class: 'btn-outline', text: 'Поделиться результатом', onclick: onShareClick });
     var restartBtn = el('button', { class: 'result-link', text: 'пройти заново', onclick: restartQuiz });
 
-    var bottom = el('div', { class: 'result-bottom' }, [communityLink, shareBtn, restartBtn]);
+    var bottom = el('div', { class: 'result-bottom enter-item result-enter-d4' }, [communityLink, shareBtn, restartBtn]);
 
     screen.appendChild(hashtags);
+    decorLayer.forEach(function (node) { screen.appendChild(node); });
     screen.appendChild(decor);
     screen.appendChild(top);
     screen.appendChild(bottom);
+
+    requestAnimationFrame(function () {
+      requestAnimationFrame(function () { screen.classList.add('enter-run'); });
+    });
+
     return screen;
   }
 
